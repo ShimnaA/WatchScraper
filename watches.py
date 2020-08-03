@@ -54,7 +54,7 @@ class WatchScraper:
 
     def get_productlist(self,brandlink):
         self.driver.get(brandlink)
-        print(brandlink)
+        print(f"Brand url - {brandlink}, Get products...")
         soup = BeautifulSoup(self.driver.page_source, 'html.parser')
         watchlist1 = soup.find(class_='columns')
         watchlist_soup = watchlist1.div.find_all('li')
@@ -63,19 +63,24 @@ class WatchScraper:
             if watch.find('h2') is not None:
                 link = watch.find('a').get('href')
                 product_list.append(link)
-                print(link)
         return product_list
 
     def download_image(self, src, filename):
         #Download Images to a local directory
-        response = requests.get(src, stream=True)
-        file_path = os.path.join(self.target_path, filename)
-        if not os.path.isdir(self.target_path):
-            os.mkdir(self.target_path)
-        file = open(file_path, 'wb')
-        response.raw.decode_content = True
-        shutil.copyfileobj(response.raw, file)
-        del response
+        try:
+            response = requests.get(src, stream=True)
+            file_path = os.path.join(self.target_path, filename)
+            if not os.path.isdir(self.target_path):
+                os.mkdir(self.target_path)
+            file = open(file_path, 'wb')
+            response.raw.decode_content = True
+            shutil.copyfileobj(response.raw, file)
+            del response
+            print("Product Image downloaded...")
+            return True
+        except Exception as e:
+            print(e)
+            return False
 
     def createExcelfile(self):
         heading = ["Brand", "Name", "id", "Price", "EMI", "ImageFileName"]
@@ -86,6 +91,7 @@ class WatchScraper:
         workbook.close()
 
     def saveto_excel(self):
+        print("Save to Excel")
         workbook = load_workbook(filename=self.filename)
         sheet = workbook.active
         for watch in self.watch_data_list:
@@ -114,9 +120,12 @@ class WatchScraper:
             image_info_src = image_info[0]["src"]
             realname = ''.join(e for e in image_info_tag if e.isalnum())
             image_filename = realname + str(id) + ".jpg"
-            #self.download_image(image_info_src, image_filename)
-            self.watch_data_list.append(Watch(brand, name, price, product_emi, product_link, id, image_info_src, image_filename))
-            watchcount_init += 1
+            image_filename = image_filename.replace("/", "-")
+
+            if self.download_image(image_info_src, image_filename):
+                self.watch_data_list.append(Watch(brand, name, price, product_emi, product_link, id, image_info_src, image_filename))
+                watchcount_init += 1
+
 
     def main_logic(self):
         self.createExcelfile()
@@ -128,7 +137,6 @@ class WatchScraper:
             product_list = self.get_productlist(brand.link)
             self.get_watchdetails(product_list, brand.label)
             self.saveto_excel()
-
 
         time.sleep(3)
         self.driver.quit()
